@@ -123,10 +123,16 @@ func worker(id int, tasks <-chan Task, found *atomic.Bool, result chan<- bool, m
 			return
 		}
 
+		hasEmptyClause := false
 		for _, clause := range task.formula {
 			if len(clause) == 0 {
-				goto nextTask
+				hasEmptyClause = true
+				break
 			}
+		}
+
+		if hasEmptyClause {
+			continue
 		}
 
 		variable := abs(task.formula[0][0])
@@ -154,9 +160,6 @@ func worker(id int, tasks <-chan Task, found *atomic.Bool, result chan<- bool, m
 				}
 			}
 		}
-
-	nextTask:
-		continue
 	}
 }
 
