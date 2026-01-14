@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"os"
-	"runtime"
-	"strconv"
-	"strings"
-	"sync/atomic"
+    "bufio"
+    "fmt"
+    "os"
+    "runtime"
+    "strconv"
+    "strings"
+    "sync/atomic"
 )
 
 ////////////////////////////
@@ -19,8 +19,8 @@ type Clause []Literal
 type Formula []Clause
 
 type Task struct {
-	formula Formula
-	depth   int
+    formula Formula
+    depth   int
 }
 
 ////////////////////////////
@@ -28,20 +28,20 @@ type Task struct {
 ////////////////////////////
 
 func abs(x Literal) Literal {
-	if x < 0 {
-		return -x
-	}
-	return x
+    if x < 0 {
+        return -x
+    }
+    return x
 }
 
 func computeParallelDepth(numCPU int) int {
-	depth := 0
-	tasks := 1
-	for tasks < numCPU {
-		tasks *= 2
-		depth++
-	}
-	return depth
+    depth := 0
+    tasks := 1
+    for tasks < numCPU {
+        tasks *= 2
+        depth++
+    }
+    return depth
 }
 
 ////////////////////////////
@@ -49,34 +49,34 @@ func computeParallelDepth(numCPU int) int {
 ////////////////////////////
 
 func simplify(formula Formula, variable Literal, value bool) Formula {
-	newFormula := Formula{}
+    newFormula := Formula{}
 
-	for _, clause := range formula {
-		newClause := Clause{}
-		satisfied := false
+    for _, clause := range formula {
+        newClause := Clause{}
+        satisfied := false
 
-		for _, lit := range clause {
+        for _, lit := range clause {
 
-			if lit == variable && value {
-				satisfied = true
-				break
-			}
-			if lit == -variable && !value {
-				satisfied = true
-				break
-			}
+            if lit == variable && value {
+                satisfied = true
+                break
+            }
+            if lit == -variable && !value {
+                satisfied = true
+                break
+            }
 
-			if lit != variable && lit != -variable {
-				newClause = append(newClause, lit)
-			}
-		}
+            if lit != variable && lit != -variable {
+                newClause = append(newClause, lit)
+            }
+        }
 
-		if !satisfied {
-			newFormula = append(newFormula, newClause)
-		}
-	}
+        if !satisfied {
+            newFormula = append(newFormula, newClause)
+        }
+    }
 
-	return newFormula
+    return newFormula
 }
 
 ////////////////////////////
@@ -84,128 +84,144 @@ func simplify(formula Formula, variable Literal, value bool) Formula {
 ////////////////////////////
 
 func dpll(formula Formula) bool {
-	if len(formula) == 0 {
-		return true
-	}
+    if len(formula) == 0 {
+        return true
+    }
 
-	for _, clause := range formula {
-		if len(clause) == 0 {
-			return false
-		}
-	}
+    for _, clause := range formula {
+        if len(clause) == 0 {
+            return false
+        }
+    }
 
-	variable := abs(formula[0][0])
+    variable := abs(formula[0][0])
 
-	for _, value := range []bool{true, false} {
-		newFormula := simplify(formula, variable, value)
-		if dpll(newFormula) {
-			return true
-		}
-	}
+    for _, value := range []bool{true, false} {
+        newFormula := simplify(formula, variable, value)
+        if dpll(newFormula) {
+            return true
+        }
+    }
 
-	return false
+    return false
 }
 
 ////////////////////////////
 // Worker pool
 ////////////////////////////
 
-func worker(id int, tasks <-chan Task, found *atomic.Bool, result chan<- bool, maxDepth int) {
-	for task := range tasks {
+var tasksChan chan Task
+var activeTasks atomic.Int64
 
-		if found.Load() {
-			return
-		}
+func worker(id int, tasks <-chan Task, found *atomic.Bool, result chan<- bool, maxDepth int, doneSent *atomic.Bool) {
+    for {
+        if found.Load() {
+            return
+        }
 
-		if len(task.formula) == 0 {
-			found.Store(true)
-			result <- true
-			return
-		}
+        task, ok := <-tasks
+        if !ok {
+            return
+        }
 
-		hasEmptyClause := false
-		for _, clause := range task.formula {
-			if len(clause) == 0 {
-				hasEmptyClause = true
-				break
-			}
-		}
+        // Cas terminaux
+        if len(task.formula) == 0 {
+            if found.CompareAndSwap(false, true) {
+                result <- true
+            }
+            activeTasks.Add(-1)
+            return
+        }
 
-		if hasEmptyClause {
-			continue
-		}
+        hasEmptyClause := false
+        for _, clause := range task.formula {
+            if len(clause) == 0 {
+                hasEmptyClause = true
+                break
+            }
+        }
 
-		variable := abs(task.formula[0][0])
+        if hasEmptyClause {
+            activeTasks.Add(-1)
+            if activeTasks.Load() == 0 && !found.Load() && doneSent.CompareAndSwap(false, true) {
+                result <- false
+            }
+            continue
+        }
 
-		for _, value := range []bool{true, false} {
+        variable := abs(task.formula[0][0])
 
-			if found.Load() {
-				return
-			}
+        for _, value := range []bool{true, false} {
 
-			newFormula := simplify(task.formula, variable, value)
+            if found.Load() {
+                activeTasks.Add(-1)
+                return
+            }
 
-			if task.depth < maxDepth {
-				// Créer une nouvelle tâche
-				tasksChan <- Task{
-					formula: newFormula,
-					depth:   task.depth + 1,
-				}
-			} else {
-				// Séquentiel
-				if dpll(newFormula) {
-					found.Store(true)
-					result <- true
-					return
-				}
-			}
-		}
-	}
+            newFormula := simplify(task.formula, variable, value)
+
+            if task.depth < maxDepth {
+                // Créer une nouvelle tâche
+                activeTasks.Add(1)
+                tasksChan <- Task{
+                    formula: newFormula,
+                    depth:   task.depth + 1,
+                }
+            } else {
+                // Séquentiel
+                if dpll(newFormula) {
+                    if found.CompareAndSwap(false, true) {
+                        result <- true
+                    }
+                    activeTasks.Add(-1)
+                    return
+                }
+            }
+        }
+
+        // Fin du traitement de cette tâche
+        activeTasks.Add(-1)
+        if activeTasks.Load() == 0 && !found.Load() && doneSent.CompareAndSwap(false, true) {
+            result <- false
+            return
+        }
+    }
 }
 
 ////////////////////////////
 // Solveur parallèle
 ////////////////////////////
 
-var tasksChan chan Task
-
 func parallelSolve(formula Formula) bool {
 
-	numCPU := runtime.NumCPU()
-	runtime.GOMAXPROCS(numCPU)
+    numCPU := runtime.NumCPU()
+    runtime.GOMAXPROCS(numCPU)
 
-	maxDepth := computeParallelDepth(numCPU)
+    maxDepth := computeParallelDepth(numCPU)
 
-	fmt.Println("Cœurs CPU :", numCPU)
-	fmt.Println("Profondeur parallèle automatique :", maxDepth)
+    fmt.Println("Cœurs CPU :", numCPU)
+    fmt.Println("Profondeur parallèle automatique :", maxDepth)
 
-	tasksChan = make(chan Task, 10000)
-	result := make(chan bool)
-	var found atomic.Bool
+    tasksChan = make(chan Task, 10000)
+    result := make(chan bool, 1)
+    var found atomic.Bool
+    var doneSent atomic.Bool
 
-	for i := 0; i < numCPU; i++ {
-		go worker(i, tasksChan, &found, result, maxDepth)
-	}
+    activeTasks.Store(1)
 
-	// Tâche initiale
-	tasksChan <- Task{
-		formula: formula,
-		depth:   0,
-	}
+    for i := 0; i < numCPU; i++ {
+        go worker(i, tasksChan, &found, result, maxDepth, &doneSent)
+    }
 
-	for {
-		select {
-		case r := <-result:
-			if r {
-				close(tasksChan)
-				return true
-			}
-			if found.Load() {
-				close(tasksChan)
-				return true
-			}
-		}
-	}
+    // Tâche initiale
+    tasksChan <- Task{
+        formula: formula,
+        depth:   0,
+    }
+
+    // On attend le premier résultat (SAT ou UNSAT)
+    r := <-result
+    return r
 }
 
 ////////////////////////////
@@ -213,50 +229,50 @@ func parallelSolve(formula Formula) bool {
 ////////////////////////////
 
 func parseDIMACS(filename string) (Formula, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+    file, err := os.Open(filename)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	formula := Formula{}
+    scanner := bufio.NewScanner(file)
+    formula := Formula{}
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
 
-		if line == "" || strings.HasPrefix(line, "c") {
-			continue
-		}
+        if line == "" || strings.HasPrefix(line, "c") {
+            continue
+        }
 
-		if strings.HasPrefix(line, "p") {
-			continue
-		}
+        if strings.HasPrefix(line, "p") {
+            continue
+        }
 
-		fields := strings.Fields(line)
-		clause := Clause{}
+        fields := strings.Fields(line)
+        clause := Clause{}
 
-		for _, f := range fields {
-			val, err := strconv.Atoi(f)
-			if err != nil {
-				return nil, err
-			}
-			if val == 0 {
-				break
-			}
-			clause = append(clause, Literal(val))
-		}
+        for _, f := range fields {
+            val, err := strconv.Atoi(f)
+            if err != nil {
+                return nil, err
+            }
+            if val == 0 {
+                break
+            }
+            clause = append(clause, Literal(val))
+        }
 
-		if len(clause) > 0 {
-			formula = append(formula, clause)
-		}
-	}
+        if len(clause) > 0 {
+            formula = append(formula, clause)
+        }
+    }
 
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+    if err := scanner.Err(); err != nil {
+        return nil, err
+    }
 
-	return formula, nil
+    return formula, nil
 }
 
 ////////////////////////////
@@ -265,26 +281,26 @@ func parseDIMACS(filename string) (Formula, error) {
 
 func main() {
 
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go fichier.cnf")
-		return
-	}
+    if len(os.Args) < 2 {
+        fmt.Println("Usage: go run main.go fichier.cnf")
+        return
+    }
 
-	filename := os.Args[1]
+    filename := os.Args[1]
 
-	fmt.Println("Lecture du fichier :", filename)
+    fmt.Println("Lecture du fichier :", filename)
 
-	formula, err := parseDIMACS(filename)
-	if err != nil {
-		fmt.Println("Erreur :", err)
-		return
-	}
+    formula, err := parseDIMACS(filename)
+    if err != nil {
+        fmt.Println("Erreur :", err)
+        return
+    }
 
-	fmt.Println("Nombre de clauses :", len(formula))
+    fmt.Println("Nombre de clauses :", len(formula))
 
-	if parallelSolve(formula) {
-		fmt.Println("SATISFIABLE (parallel)")
-	} else {
-		fmt.Println("UNSATISFIABLE (parallel)")
-	}
+    if parallelSolve(formula) {
+        fmt.Println("SATISFIABLE (parallel)")
+    } else {
+        fmt.Println("UNSATISFIABLE (parallel)")
+    }
 }
