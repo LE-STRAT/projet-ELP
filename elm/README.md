@@ -22,7 +22,7 @@ Un visualiseur interactif pour le langage de programmation graphique **TcTurtle*
 
 1. Accédez au dossier du projet :
 ```bash
-cd c:\Users\julie\Documents\prepa\dossierPartagéLinux\INSA-3A\elp\elp-git\projet-ELP\elm
+cd bidule\truc\elp
 ```
 
 2. Lancez `elm reactor` :
@@ -32,7 +32,7 @@ elm reactor
 
 3. Ouvrez votre navigateur et allez à :
 ```
-http://localhost:8000/src/Main.elm
+http://localhost:8000/Main.elm
 ```
 
 Voilà ! L'application est prête à l'emploi ! 🎉
