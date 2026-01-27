@@ -35,10 +35,10 @@ step instr state =
             { state | x = newX, y = newY, lines = newLine :: state.lines }
 
         Left a ->
-            { state | angle = state.angle + toFloat a }
+            { state | angle = state.angle - toFloat a }
 
         Right a ->
-            { state | angle = state.angle - toFloat a }
+            { state | angle = state.angle + toFloat a }
 
         Repeat n instrs ->
             List.foldl (\_ acc -> execute instrs acc) state (List.repeat n ())
