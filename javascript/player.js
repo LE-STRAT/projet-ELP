@@ -2,11 +2,11 @@ export default class Player {
 	constructor(name) {
 		this.name = name;
 		this.cards = [];
-		this.lost = flase;
+		this.lost = false;
 	}
 
 	addCard(card) {
-		if (this.cards.includes(cards)) {
+		if (this.cards.includes(card)) {
 			this.lost = true;
 		} else {
 			this.cards.push(card);
@@ -15,5 +15,11 @@ export default class Player {
 
 	hasSevenCards() {
 		return this.cards.length === 7;
+	}
+
+	getScore() {
+		if (this.lost) return 0;
+
+		return this.cards.reduce((sum, card) => sum + card, 0);
 	}
 }
