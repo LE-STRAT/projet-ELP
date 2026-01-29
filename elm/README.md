@@ -78,11 +78,8 @@ Si le dessin ne s'affiche pas :
  
 —> Triangle avec répétition : [Repeat 3 [Forward 100, Right 120]]
 
-—> Étoile simple  : [Repeat 5 [Forward 100, Right 72]]
-
-—> Spirale : [Repeat 10 [Forward 30, Right 36, Forward 60, Right 36]]
-
 —> Escalier : [Forward 50, Right 90, Forward 50, Left 90, Forward 50, Right 90, Forward 50, Left 90, Forward 50]
 
 —> Forme complexe : [Repeat 8 [Left 45, Repeat 6 [Repeat 90 [Forward 1, Left 2], Left 90]]]
+
 
