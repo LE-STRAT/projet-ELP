@@ -1,7 +1,6 @@
 # TcTurtle Visualizer
 
 Un visualiseur interactif pour le langage de programmation graphique TcTurtle.  
-Dessinez des figures géométriques en contrôlant les mouvements d'une tortue virtuelle !
 
 
 ## Les fonctionnalités :
@@ -81,5 +80,6 @@ Si le dessin ne s'affiche pas :
 —> Escalier : [Forward 50, Right 90, Forward 50, Left 90, Forward 50, Right 90, Forward 50, Left 90, Forward 50]
 
 —> Forme complexe : [Repeat 8 [Left 45, Repeat 6 [Repeat 90 [Forward 1, Left 2], Left 90]]]
+
 
 
