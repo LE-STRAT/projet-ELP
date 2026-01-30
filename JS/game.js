@@ -12,55 +12,60 @@ export default class Game {
 	}
 
 	async play() {
-		console.log(" Début de la partie Flip 7\n");
-		this.logger.log("Début de la partie");
+    console.log(" Début de la partie Flip 7\n");
+    this.logger.log("Début de la partie");
 
-		for(const player of this.players) {
-			await this.playPlayerTurn(player);
-			this.logger.log(`Fin du tour de ${player.name}`)
-			console.log("\n----------------------\n");
-		}
+    let gameOver = false;
 
-		this.showScores();
-		this.input.close();
-		console.log(" Fin de la manche");
-	}
+    while (!gameOver) {
+        for (const player of this.players) {
+            gameOver = await this.playPlayerTurn(player);
+            if (gameOver) break;
+            console.log("\n----------------------\n");
+        }
+    }
 
-	async playPlayerTurn(player) {
-		console.log(`Tour de ${player.name}`);
-		this.logger.log(`Tour de ${player.name}`);
+    this.showScores();
+    this.input.close();
+    console.log(" Fin de la manche");
+}
 
-		while (!player.lost && !player.hasSevenCards()) {
-			const choice = await this.input.ask(
-				`${player.name}, tirer une carte ? (o/n) `
-			);
+async playPlayerTurn(player) {
+    console.log(`Tour de ${player.name}`);
+    this.logger.log(`Tour de ${player.name}`);
 
-			this.logger.log(`${player.name} choisit : ${choice}`);
+    const choice = await this.input.ask(
+        `${player.name}, tirer une carte ? (o/n) `
+    );
 
-			if (choice !== "o") {
-				console.log(`${player.name} s'arrête`);
-				this.logger.log(`${player.name} s'arrête`);
-				break;
-			}
+    this.logger.log(`${player.name} choisit : ${choice}`);
 
-			const card = this.deck.draw();
-			console.log(`${player.name} tire ${card}`);
-			this.logger.log(`${player.name} tire la carte ${card}`);
+    if (choice !== "o") {
+        console.log(`${player.name} s'arrête`);
+        this.logger.log(`${player.name} s'arrête`);
+        return false; // la partie continue
+    }
 
-			player.addCard(card);
+    const card = this.deck.draw();
+    console.log(`${player.name} tire ${card}`);
+    this.logger.log(`${player.name} tire la carte ${card}`);
 
-			if (player.lost) {
-				console.log(`${player.name} a perdu (carte en double)`);
-				this.logger.log(`${player.name} PERD (carte en double)`);
-			}
-		}
+    player.addCard(card);
 
-		if (player.hasSevenCards()) {
-			console.log(`${player.name} a gagné avec 7 cartes !`);
-			this.logger.log(`${player.name} GAGNE (7 cartes)`);
-		}
-	}
+    if (player.lost) {
+        console.log(`${player.name} a perdu (carte en double)`);
+        this.logger.log(`${player.name} PERD (carte en double)`);
+        return true; // fin de partie
+    }
 
+    if (player.hasSevenCards()) {
+        console.log(`${player.name} a gagné avec 7 cartes !`);
+        this.logger.log(`${player.name} GAGNE (7 cartes)`);
+        return true; // fin de partie
+    }
+
+    return false;  // la partie continue
+ } 
 	showScores() {
 		console.log(" Scores finaux :");
 		this.logger.log(" Scores finaux");
@@ -71,4 +76,5 @@ export default class Game {
 			this.logger.log(`${player.name} : ${score} points`);
 		}
 	}
+
 }
