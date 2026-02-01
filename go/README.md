@@ -9,7 +9,7 @@ L'objectif principal est de comparer les performances entre :
 ## Structure du projet
 
 * `main.go` : Le code source du solveur (contient l'implémentation DPLL, le parseur DIMACS et le comparateur de performance).
-* `generator.go` : Un utilitaire pour générer des problèmes SAT aléatoires et difficiles (Hard 3-SAT).
+* `generator.go` : Un utilitaire pour générer des problèmes SAT aléatoires et difficiles.
 * `*.cnf` : Fichiers d'entrée au format DIMACS (formule logique).
 
 ## Prérequis
