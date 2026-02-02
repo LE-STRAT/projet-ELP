@@ -1,86 +1,140 @@
-# Solveur SAT en Go (Séquentiel vs Parallèle)
+# Solveur SAT en Go — Séquentiel vs Parallèle
 
-Ce projet implémente un solveur SAT (Boolean Satisfiability Problem) basé sur l'algorithme **DPLL** (Davis-Putnam-Logemann-Loveland).
+Ce projet implémente un solveur SAT basé sur l’algorithme **DPLL** (Davis–Putnam–Logemann–Loveland) et compare deux approches :
 
-L'objectif principal est de comparer les performances entre :
-1.  Une approche **séquentielle** (récursive classique).
-2.  Une approche **parallèle** utilisant les Goroutines et le pattern Worker Pool de Go.
+- une version **séquentielle**
+- une version **parallèle** utilisant les goroutines
+
+Le projet inclut également :
+
+- un **générateur de formules DIMACS**
+- un **benchmark automatisé** produisant un CSV
+- un **script Python** pour tracer les courbes de performance
+
+---
 
 ## Structure du projet
 
-* `main.go` : Le code source du solveur (contient l'implémentation DPLL, le parseur DIMACS et le comparateur de performance).
-* `generator.go` : Un utilitaire pour générer des problèmes SAT aléatoires et difficiles (Hard 3-SAT).
-* `*.cnf` : Fichiers d'entrée au format DIMACS (formule logique).
+| Fichier | Description |
+|--------|-------------|
+| `main.go` | Solveur SAT + mode benchmark (`-mode=seq` / `-mode=par`) |
+| `generator.go` | Générateur de formules DIMACS aléatoires |
+| `bench.go` | Benchmark automatisé (génère un CSV) |
+| `plot.py` | Script Python pour tracer les courbes |
+| `formula.cnf` | Dernière formule générée |
+| `results.csv` | Résultats du benchmark |
+
+---
 
 ## Prérequis
 
-* [Go](https://go.dev/dl/) (version 1.18 ou supérieure recommandée).
+- Go **1.25+**
+- Python 3
+- matplotlib 
 
-## Utilisation du Générateur
+---
 
-Pour tester efficacement le parallélisme, il faut des problèmes suffisamment complexes. Le fichier `generator.go` crée des formules aléatoires.
+# Génération de formules SAT
 
-### 1. Configuration
-Ouvrez `generator.go` et modifiez la variable `numVars` pour ajuster la difficulté :
+Le générateur produit une formule DIMACS aléatoire dans `formula.cnf`
 
-```go
-// Dans generator.go
-numVars := 60 // 20 = Instantané, 60 = Moyen, 100+ = Difficile
+### Utilisation
 ```
-## 2. Génération
-Le générateur affiche le résultat dans la sortie standard. Utilisez une redirection pour créer un fichier .cnf
-
-```bash
-# Générer un fichier de test
-go run generator.go > test_complexe.cnf
+go run generator.go  <numVars> [numClauses]
 ```
-Le générateur utilise un ratio clauses/variables de ~4.3, point critique connu pour créer les problèmes les plus difficiles à résoudre (transition de phase).
 
-## Utilisation du Solveur
-Le programme main.go prend en argument un fichier au format DIMACS (.cnf). Il exécute automatiquement les deux versions (séquentielle et parallèle) pour comparer les résultats.
+- `numVars` : nombre de variables (obligatoire)
+- `numClauses` : optionnel (par défaut = `numVars * 4`)
 
-```bash
-go run main.go test_complexe.cnf
+Exemple :
 ```
-Exemple de sortie attendue :
-
+go run generator.go  40
 ```
-Lecture du fichier : test_complexe.cnf
-Nombre de clauses : 258
 
---- Test séquentiel ---
-SATISFIABLE (séquentiel)
-Temps séquentiel : 1.452000 s
+# Utilisation du solveur (mode normal)
 
---- Test parallèle ---
-Cœurs CPU : 12
-Profondeur parallèle automatique : 4
-SATISFIABLE (parallel)
-Temps parallèle : 0.484000 s
+Pour résoudre un fichier DIMACS :
 
-Accélération : ×3.00
+go run main.go  fichier.cnf
+
+Le solveur :
+
+- charge la formule
+- exécute la version séquentielle
+- exécute la version parallèle
+- affiche les temps et le speedup
+
+---
+
+# Mode benchmark (automatisé)
+
+Le solveur possède un mode spécial utilisé par `bench.go` :
 ```
-## Analyse des performances
+go run main.go  -mode=seq
+go run main.go  -mode=par
+```
 
-Il est crucial de comprendre que le parallélisme n'est pas toujours synonyme de vitesse :
-1. Petits fichiers (< 30 variables) :
+Dans ce mode :
 
-    * Le code séquentiel sera souvent plus rapide.
+- le solveur lit automatiquement `formula.cnf`
+- il exécute uniquement la version demandée
+- il affiche **uniquement le temps en millisecondes**
 
-    * Raison : Le coût de création des Goroutines, de l'allocation mémoire et de la synchronisation (atomic/channels) est plus élevé que le calcul lui-même.
+---
 
-2. Gros fichiers (> 50 variables) :
+# Benchmark automatisé
 
-    * Le code parallèle devient rentable.
+Le script `bench.go` :
 
-    * Raison : La charge de travail par branche de l'arbre DPLL est assez lourde pour occuper efficacement tous les cœurs du processeur malgré le coût de gestion.
+- génère plusieurs formules pour différentes tailles
+- exécute les solveurs séquentiel et parallèle
+- calcule les moyennes
+- produit un fichier CSV
 
+### Lancer le benchmark
 
-## Format de fichier supporté (DIMACS)
-Le solveur accepte le format standard utilisé dans les compétitions SAT :
+### ✔ Linux / macOS
 
-- Les lignes commençant par c sont des commentaires.
-- La ligne p cnf [nbVars] [nbClauses] définit l'en-tête.
-- Chaque ligne suivante est une clause se terminant par 0.
+go run bench.go  > results.csv
 
+# Tracer les courbes
 
+Le script Python lit `results.csv` et trace :
+
+- temps séquentiel
+- temps parallèle
+
+### Lancer :
+```
+python3 plot.py
+```
+Une fenêtre matplotlib s’ouvre avec le graphe.
+
+---
+
+# Format DIMACS supporté
+
+- `c ...` : commentaires  
+- `p cnf <nbVars> <nbClauses>` : en-tête  
+- chaque clause se termine par `0`
+
+Exemple :
+```
+p cnf 3 2
+1 -2 0
+3 0
+```
+
+# Analyse des performances
+
+### Petites formules (< 30 variables)
+
+- Le séquentiel est souvent plus rapide.
+- Le coût du parallélisme dépasse le coût du calcul.
+
+### Formules plus grandes (> 50 variables)
+
+- Le parallèle devient rentable.
+- Le speedup dépend fortement de la structure de la formule.
+
+---
