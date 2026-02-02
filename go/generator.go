@@ -2,53 +2,50 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
-	"time"
+	"strconv"
 )
 
 func main() {
-	// Configuration de la difficulté
-	// Pour un solveur naïf (sans propagation unitaire poussée) :
-	// 20 vars = instantané
-	// 40 vars = < 1 seconde
-	// 50-60 vars = quelques secondes (le bon test pour toi)
-	// 100 vars = potentiellement très long
-	
-	numVars := 60
-	// Le ratio 4.26 est connu pour générer les problèmes les plus durs (Phase Transition)
-	numClauses := int(float64(numVars) * 4.3) 
 
-	rand.Seed(time.Now().UnixNano())
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run generator.go <numVars> [numClauses]")
+		return
+	}
 
-	fmt.Printf("p cnf %d %d\n", numVars, numClauses)
+	numVars, err := strconv.Atoi(os.Args[1])
+	if err != nil || numVars <= 0 {
+		fmt.Println("numVars doit être un entier positif")
+		return
+	}
+
+	numClauses := numVars * 4
+	if len(os.Args) >= 3 {
+		c, err := strconv.Atoi(os.Args[2])
+		if err == nil && c > 0 {
+			numClauses = c
+		}
+	}
+
+	f, err := os.Create("formula.cnf")
+	if err != nil {
+		fmt.Println("Erreur création fichier:", err)
+		return
+	}
+	defer f.Close()
+
+	fmt.Fprintf(f, "p cnf %d %d\n", numVars, numClauses)
 
 	for i := 0; i < numClauses; i++ {
-		clause := make([]int, 0, 3)
-		used := make(map[int]bool)
-
-		// Générer 3 littéraux distincts (3-SAT)
-		for len(clause) < 3 {
-			lit := rand.Intn(numVars) + 1
-			
-			// 50% de chance d'être négatif
-			if rand.Intn(2) == 0 {
-				lit = -lit
+		clauseSize := rand.IntN(3) + 1
+		for j := 0; j < clauseSize; j++ {
+			v := rand.IntN(numVars) + 1
+			if rand.IntN(2) == 0 {
+				v = -v
 			}
-
-			// On évite d'avoir x et -x ou deux fois x dans la même clause
-			if !used[abs(lit)] {
-				used[abs(lit)] = true
-				clause = append(clause, lit)
-			}
+			fmt.Fprintf(f, "%d ", v)
 		}
-		fmt.Printf("%d %d %d 0\n", clause[0], clause[1], clause[2])
+		fmt.Fprintf(f, "0\n")
 	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
